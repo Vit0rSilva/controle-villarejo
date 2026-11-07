@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Villarejo • Controle de Estoque</title>
+
+  <!-- Aplica tema antes da renderização (Padrão: CLARO) -->
+  <script>
+    (function () {
+      const savedTheme = localStorage.getItem('villarejo-theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+          },
+          keyframes: {
+            pulseSoft: {
+              '0%, 100%': { opacity: '1' },
+              '50%': { opacity: '0.55' }
+            }
+          },
+          animation: {
+            'pulse-soft': 'pulseSoft 2s ease-in-out infinite'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
+  </style>
+</head>
+<body class="min-h-full bg-[#F6F7F9] text-zinc-900 dark:bg-[#0C0F14] dark:text-zinc-100 antialiased transition-colors duration-150">
+
+  <!-- TOPO FIXO: Limpo, direto e focado em operação -->
+  <header class="sticky top-0 z-30 border-b border-zinc-200/90 bg-white/95 dark:border-zinc-800/90 dark:bg-[#11151C]/95 backdrop-blur-md">
+    <div class="mx-auto max-w-[1440px] px-4 sm:px-6">
+      <div class="flex h-14 items-center justify-between gap-3">
+        <!-- Marca + Indicador discreto de conexão -->
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-bold text-sm tracking-tight">
+            V
+          </div>
+          <div class="truncate">
+            <div class="flex items-center gap-2">
+              <h1 class="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-white">
+                Estoque Villarejo
+              </h1>
+              <span id="last-sync-badge" class="hidden sm:inline-block text-[11px] font-medium text-zinc-400 dark:text-zinc-500 tabular"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ações Rápidas Secundárias + Botão Claro/Escuro -->
+        <div class="flex items-center gap-1.5 sm:gap-2">
+          <button
+            onclick="copyShoppingListToClipboard()"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            title="Copia todos os itens em falta e atenção prontos para enviar no WhatsApp"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+            </svg>
+            <span class="hidden sm:inline">Copiar Lista de Compras</span>
+            <span class="sm:hidden">Compras</span>
+          </button>
+
+          <button
+            onclick="openNewProductModal()"
+            class="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            title="Adicionar item manualmente"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            <span class="hidden md:inline">Item</span>
+          </button>
+
+          <button
+            onclick="openManualParserModal()"
+            class="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            title="Colar relatório do WhatsApp manualmente"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span class="hidden md:inline">Colar Lista</span>
+          </button>
+
+          <button
+            onclick="openWebhookConfigModal()"
+            class="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+            title="Configuração do Webhook Evolution & Sincronização"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </button>
+
+          <button
+            onclick="loadDashboard(true)"
+            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+            title="Varrer mensagens do grupo e atualizar agora"
+          >
+            <svg id="refresh-icon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+
+          <!-- Alternador de Tema Claro / Escuro -->
+          <button
+            onclick="toggleTheme()"
+            id="theme-toggle-btn"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-100 px-2.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200/80 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            title="Alternar entre Tema Claro e Escuro"
+          >
+            <!-- Ícone Lua (visível no modo claro) -->
+            <svg class="h-3.5 w-3.5 block dark:hidden text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+            <!-- Ícone Sol (visível no modo escuro) -->
+            <svg class="h-3.5 w-3.5 hidden dark:block text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <span class="hidden sm:inline dark:hidden">Escuro</span>
+            <span class="hidden sm:dark:inline">Claro</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-[1440px] px-4 py-4 sm:px-6 space-y-4">
+
+    <!-- BARRA COMPACTA DE ALERTA > 24H (Sem poluir a tela, direto ao ponto) -->
+    <div id="stale-banners-container" class="hidden"></div>
+
+    <!-- BARRA DE NAVEGAÇÃO RÁPIDA: Setores + Busca Instantânea + Filtros de Status -->
+    <div class="space-y-3">
+      <!-- Tira de Setores (Clique filtra na hora) -->
+      <div id="sections-health-strip" class="flex items-center gap-2 overflow-x-auto pb-1">
+        <!-- Populado via JS -->
+      </div>
+
+      <!-- Barra Única de Filtro Rápido + Busca -->
+      <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-zinc-200/90 bg-white p-2 shadow-sm dark:border-zinc-800/90 dark:bg-[#141922]">
+        <!-- Abas de Status tipo Segmented Control -->
+        <div class="flex flex-wrap items-center gap-1" id="status-filter-buttons">
+          <button
+            onclick="setStatusFilter('ALL')"
+            data-filter="ALL"
+            class="filter-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+          >
+            Todos <span id="count-all" class="ml-1 opacity-70 tabular">0</span>
+          </button>
+          <button
+            onclick="setStatusFilter('CRITICAL')"
+            data-filter="CRITICAL"
+            class="filter-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+          >
+            <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+            Em Falta <span id="count-critical" class="opacity-75 tabular">0</span>
+          </button>
+          <button
+            onclick="setStatusFilter('WARNING')"
+            data-filter="WARNING"
+            class="filter-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+          >
+            <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+            Pouco <span id="count-warning" class="opacity-75 tabular">0</span>
+          </button>
+          <button
+            onclick="setStatusFilter('PORTIONED')"
+            data-filter="PORTIONED"
+            class="filter-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+            title="Unidade fechada zerada (00), mas com bastante porção pronta"
+          >
+            <span class="h-2 w-2 rounded-full bg-sky-500"></span>
+            Só Porção <span id="count-portioned" class="opacity-75 tabular">0</span>
+          </button>
+          <button
+            onclick="setStatusFilter('RESTAOCK')"
+            data-filter="RESTAOCK"
+            class="filter-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+          >
+            Comprar <span id="count-restock" class="opacity-75 tabular">0</span>
+          </button>
+          <button
+            onclick="setStatusFilter('OK')"
+            data-filter="OK"
+            class="filter-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+          >
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            Em Dia <span id="count-ok" class="opacity-75 tabular">0</span>
+          </button>
+        </div>
+
+        <!-- Campo de Busca Rápida (Atalho '/') -->
+        <div class="relative w-full sm:w-72">
+          <svg class="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            id="search-input"
+            oninput="handleSearch(this.value)"
+            placeholder="Buscar item... (pressione /)"
+            class="w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-8 pr-8 py-1.5 text-xs font-medium text-zinc-900 placeholder-zinc-400 transition focus:border-zinc-400 focus:bg-white focus:outline-none dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-zinc-600"
+          />
+          <button
+            id="clear-search-btn"
+            onclick="clearSearch()"
+            class="hidden absolute right-2 top-1.5 rounded p-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LISTAGEM DE ITENS POR SEÇÃO (Grade densa de leitura rápida em 2/3 colunas) -->
+    <div id="sections-container" class="space-y-5 pb-10">
+      <!-- Renderizado dinamicamente -->
+    </div>
+
+  </main>
+
+  <!-- MODAL LIMPO: Editar Detalhes do Produto -->
+  <div id="edit-product-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/40 dark:bg-black/70 p-4 backdrop-blur-[2px]">
+    <div class="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-[#141922]">
+      <div class="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+        <h3 class="text-sm font-bold text-zinc-900 dark:text-white" id="edit-modal-title">Editar Item</h3>
+        <button onclick="closeEditProductModal()" class="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">✕</button>
+      </div>
+
+      <form id="edit-product-form" onsubmit="submitEditProduct(event)" class="mt-4 space-y-3.5">
+        <input type="hidden" id="edit-product-id" />
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Produto</label>
+            <input
+              type="text"
+              id="edit-canonical-name"
+              required
+              class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:border-zinc-400"
+            />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Quantidade Bruta</label>
+            <input
+              type="text"
+              id="edit-raw-main-value"
+              placeholder="Ex: 7kg, 00, Tem, Trazer"
+              class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-mono font-semibold text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:border-zinc-400"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Aberto</label>
+            <input
+              type="text"
+              id="edit-sub-aberto"
+              placeholder="01, Pouco"
+              class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Cozido</label>
+            <input
+              type="text"
+              id="edit-sub-cozido"
+              placeholder="00, 1 panela"
+              class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Ralado/Cort.</label>
+            <input
+              type="text"
+              id="edit-sub-ralado"
+              placeholder="1 vasilha"
+              class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Porções Prontas (separe por vírgula)</label>
+          <input
+            type="text"
+            id="edit-sub-porcoes"
+            placeholder="Ex: 35 de 100g, 13 de petisco 300"
+            class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+          />
+        </div>
+
+        <input type="hidden" id="edit-incomplete-flag" value="false" />
+        <input type="hidden" id="edit-touch-section" value="true" />
+
+        <div class="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
+          <button
+            type="button"
+            onclick="deleteCurrentProduct()"
+            class="text-xs font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400"
+          >
+            Excluir item
+          </button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              onclick="closeEditProductModal()"
+              class="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              Salvar
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Novo Item -->
+  <div id="new-product-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/40 dark:bg-black/70 p-4 backdrop-blur-[2px]">
+    <div class="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-[#141922]">
+      <div class="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+        <h3 class="text-sm font-bold text-zinc-900 dark:text-white">Novo Item</h3>
+        <button onclick="closeNewProductModal()" class="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">✕</button>
+      </div>
+      <form onsubmit="submitNewProduct(event)" class="mt-4 space-y-3">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Setor</label>
+          <select id="new-product-category" required class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"></select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Nome do Item</label>
+          <input type="text" id="new-product-name" required placeholder="Ex: Mussarela" class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Quantidade Atual</label>
+          <input type="text" id="new-product-value" required placeholder="Ex: 03 barras, Tem, 00" class="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-mono text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white" />
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeNewProductModal()" class="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800">Cancelar</button>
+          <button type="submit" class="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900">Adicionar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Colar Relatório do WhatsApp -->
+  <div id="manual-parser-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/40 dark:bg-black/70 p-4 backdrop-blur-[2px]">
+    <div class="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-[#141922]">
+      <div class="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+        <div>
+          <h3 class="text-sm font-bold text-zinc-900 dark:text-white">Colar Relatório do WhatsApp</h3>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400">Substitui os valores da seção pelo relatório colado.</p>
+        </div>
+        <button onclick="closeManualParserModal()" class="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">✕</button>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-center gap-1.5">
+        <span class="text-[11px] text-zinc-400 mr-1">Modelos:</span>
+        <button type="button" onclick="fillSampleMessage('acougue')" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">Açougue</button>
+        <button type="button" onclick="fillSampleMessage('frios')" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">Frios</button>
+        <button type="button" onclick="fillSampleMessage('mercado')" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">Mercado</button>
+        <button type="button" onclick="fillSampleMessage('hortifrutis')" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">Hortifrutis</button>
+        <button type="button" onclick="fillSampleMessage('embalagens')" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">Embalagens/Sorvetes</button>
+        <button type="button" onclick="fillSampleMessage('diparma')" class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">DiParma</button>
+      </div>
+
+      <form onsubmit="submitManualParse(event)" class="mt-3 space-y-3">
+        <textarea
+          id="manual-raw-message"
+          rows="8"
+          required
+          placeholder="Cole aqui a mensagem enviada no grupo..."
+          class="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs text-zinc-900 focus:border-zinc-400 focus:bg-white focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        ></textarea>
+
+        <div id="parse-result-feedback" class="hidden rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300"></div>
+
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" onclick="closeManualParserModal()" class="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800">Fechar</button>
+          <button type="submit" id="manual-parse-submit-btn" class="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900">
+            Atualizar Setor
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Configuração Webhook Evolution -->
+  <div id="webhook-config-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/40 dark:bg-black/70 p-4 backdrop-blur-[2px]">
+    <div class="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-[#141922]">
+      <div class="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+        <div>
+          <h3 class="text-sm font-bold text-zinc-900 dark:text-white">Conexão Evolution API</h3>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400">Observando grupo <span class="font-mono">557188908550-1544726594@g.us</span></p>
+        </div>
+        <button onclick="closeWebhookConfigModal()" class="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">✕</button>
+      </div>
+
+      <div class="mt-4 space-y-3 text-xs">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-medium text-zinc-700 dark:text-zinc-300">URL do Webhook (Rede Docker Interna):</span>
+            <button onclick="navigator.clipboard.writeText('http://villarejo-api:8000/api/v1/webhook/evolution'); showToast('URL copiada!');" class="text-xs font-semibold text-zinc-900 underline dark:text-white">Copiar</button>
+          </div>
+          <code class="block rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-[11px] text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 select-all">http://villarejo-api:8000/api/v1/webhook/evolution</code>
+          <p class="mt-1 text-[11px] text-zinc-500">Evento necessário na Evolution API: <strong>MESSAGES_UPSERT</strong></p>
+        </div>
+
+        <div id="sync-group-feedback" class="hidden rounded-lg border border-zinc-200 bg-zinc-50 p-2.5 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"></div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
+          <button
+            type="button"
+            onclick="triggerGroupSyncNow()"
+            id="sync-group-btn"
+            class="rounded-lg bg-zinc-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900"
+          >
+            Sincronizar Mensagens do Grupo
+          </button>
+          <button type="button" onclick="closeWebhookConfigModal()" class="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Minimalista -->
+  <div id="toast" class="fixed bottom-4 right-4 z-50 hidden rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900"></div>
+
+  <script>
+    let dashboardState = null;
+    let activeStatusFilter = 'ALL';
+    let activeSectionFilter = 'ALL';
+    let searchQuery = '';
+    let activeInlineEditId = null;
+
+    const SAMPLE_MESSAGES = {
+      acougue: `AÇOUGUE
+● Carne do Sol : 00 🥩
+• 00 Porções de 100g
+• 13 Porções de petisco 300
+Cozida: 00
+● Carne Seca: 00
+33 porções de 100g
+● Costelinha: 00🍖
+09 porções de 100g
+• Cozida: 00
+● Frango 7kg 🐔
+• 34 Porções de 100
+Cozido: 01 panela em produção
+● Camarão:🦐 7kg
+porções: Tem
+● Salmão:
+01 peça: 🐠
+03 Porções 150g
+01 Porções 100g`,
+      frios: `Frios
+Atum: 3,500kg
+Aberto: 00
+Bacon: 00
+Porções: 35 de 100g
+Barbecue: 01 fechado
+Aberto: 01
+Calabresa fatiada: 00
+Porções: 65 de 100g
+Calabresa ralada: 03 de 100g
+Farinha de trigo: 30kg
+Frango : 2kg
+Porções: 30 de 100g
+Cozido: 00
+Gorgonzola: 00 barrinhas
+Porções: 25 porções de 50g
+Granulado: 1kg
+Aberto: 01
+Leite condensado: 06 uni
+Lombinho:
+Porções: 27 de 100
+Mussarela: 03 barras
+1 vasilha
+Mussarela zero lactose: 04 barrinhas
+Peito de peru: 00
+Porções: 13 de 100g
+Pepperoni: 1kg
+Porções 28 Porções de 80g
+Presunto: 00
+Porções: 10 Porções de 100g
+Provolone: 02
+Porções: 05 de 50g
+Ralado: 00
+Queijo coalho: tem
+Porções: 52 de 50g
+Requeijão Catupiry: 02 unidade
+Requeijão Tirolez: 08 uni
+Aberto : 01
+Creme cheese: 01
+Aberto: 00
+Requeijão Cheddar: 02
+Aberto: 01`,
+      mercado: `Mercado
+Açúcar: tem
+Aberto: 1
+Açúcar demerara: 1kg
+Azeite doce: 00
+Aberto: 01
+Azeitona: 02
+Aberto: 01
+Alho frito: tem
+Brócolis 🥦: 3
+Congelado: pouco
+Canela em pó: Tem
+Chocolate de Avelã: 01
+Aberto: 01
+Doritos: 01
+Aberto: 00
+Creme de leite: 14 uni
+Creme culinário: 00
+Leite em pó: 1 lata
+Aberto: Tem
+Nescau: 2kg
+Aberto: tem
+Oreo: 4 uni
+Orégano: Tem
+Ovo de codorna: 5
+Cozida: pouca
+Bobina: 00
+Em uso: 00 trazer
+Milho: tem
+Molho Tarê: 10L
+Óleo: tem
+Molho Sugo: 3 vasilhas
+00 Panelas pronta
+00 panela em produção
+Pimenta calabresa: Tem
+Goiabada: 02
+Aberto : 1
+Sal: Tem
+Corante: Tem
+Fermento: 02
+Aberto: 01
+M&M: 02
+Aberto: 01
+Fuba: Tem
+Saco de cachorro quente: tem
+Vinagre: Tem
+Pão de hot dog: 00
+Salsicha: Tem
+Cuscuz :03 unidade
+Batata palha:02 fechado
+Aberto: 01`,
+      hortifrutis: `Hortifrutis
+•Abacaxi 🍍05 unidade
+Cortado: 01
+•Banana da prata: 03
+•Banana da Terra
+04 Vasilhas de purê
+Pencas: 00
+•Cebola grande 🧅 trazer
+•Tomate grande 🍅 tem
+Tomate Cereja 🍒 tem
+Tomate Seco: 01 balde
+aberto: 01
+Palmito:
+Fechado: 01
+Aberto: 00
+Para Suco 🧋
+Maracujá 🍑 1 Pct e Meio
+150 porção: 00
+100 porca : 00
+Laranja 🍊 temm
+Morango Suco🍓 1,500kg
+Morango pizza: Trazer
+Limão 🍋 00
+FOLHAS
+Manjericão🍃 1 pé
+Rúcula 🥗 1 pé
+Coentro: trazer
+Pimentão 🫑 1
+Cebolinha: pouca
+Alface roxo para salada: tem
+Alface verde: tem
+Gergelim preto: tem
+Gergelim branco: Tem`,
+      embalagens: `Embalagens e Preparos
+Caixas de pizza G: 120
+Caixas de pizza M: 80
+Caixas de pizza P: 45
+Massas G boleadas: 40
+Massas G abertas: 15
+Brigadeiros enrolados: 30
+*Batata frita: 02 pacotes
+
+*SORVETES:
+Ovomaltine: 01 balde
+Paçoca: 00
+Oreo: Pouco`,
+      diparma: `RELAÇÃO PRODUTOS DIPARMA
+
+▶️ FRANGO
+15KILOS
+20 PORÇÕES
+
+▶️ CAMARÃO
+04KILOS
+12 PORÇÕES
+
+▶️ FILE MIGNON
+02 PEÇAS
+14 PORÇÕES
+
+▶️ FETTUCCINE
+14FECHADAS
+00 CAIXAS FECHADAS
+
+▶️ OLEO SOJA
+08 UNIDADES
+
+▶️ MOLHO SUGO
+04 VASILHAS`
+    };
+
+    // Alterna entre Claro (padrão) e Escuro
+    function toggleTheme() {
+      const root = document.documentElement;
+      const isDark = root.classList.toggle('dark');
+      localStorage.setItem('villarejo-theme', isDark ? 'dark' : 'light');
+    }
+
+    // Atalho '/' para focar busca instantaneamente
+    document.addEventListener('keydown', e => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        document.getElementById('search-input').focus();
+      } else if (e.key === 'Escape') {
+        if (activeInlineEditId) {
+          activeInlineEditId = null;
+          renderDashboard();
+        }
+        closeEditProductModal();
+        closeNewProductModal();
+        closeManualParserModal();
+        closeWebhookConfigModal();
+      }
+    });
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.className = `fixed bottom-4 right-4 z-50 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-lg transition ${
+        isError
+          ? 'bg-rose-600 text-white'
+          : 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+      }`;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2800);
+    }
+
+    async function loadDashboard(syncGroup = false) {
+      const icon = document.getElementById('refresh-icon');
+      icon.classList.add('animate-spin');
+      try {
+        const url = syncGroup ? '/api/v1/dashboard?sync=true' : '/api/v1/dashboard';
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Falha ao carregar estoque');
+        dashboardState = await resp.json();
+        renderDashboard();
+      } catch (err) {
+        console.error(err);
+        showToast('Erro ao carregar estoque', true);
+      } finally {
+        icon.classList.remove('animate-spin');
+      }
+    }
+
+    function renderDashboard() {
+      if (!dashboardState) return;
+
+      const syncTime = new Date(dashboardState.generated_at).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      document.getElementById('last-sync-badge').textContent = `• ${syncTime}`;
+
+      const stats = dashboardState.stats;
+      document.getElementById('count-all').textContent = stats.total_products;
+      document.getElementById('count-critical').textContent = stats.critical_products_count;
+      document.getElementById('count-warning').textContent = stats.warning_products_count;
+      document.getElementById('count-portioned').textContent = stats.portioned_products_count || 0;
+      document.getElementById('count-restock').textContent =
+        stats.critical_products_count + stats.warning_products_count;
+      document.getElementById('count-ok').textContent = stats.ok_products_count;
+
+      updateFilterButtonsUI();
+      renderStaleBar(dashboardState.sections_health);
+      renderSectionsStrip(dashboardState.sections_health);
+      populateNewProductCategorySelect(dashboardState.sections_health);
+      renderSectionsAndProducts(dashboardState.sections);
+    }
+
+    function updateFilterButtonsUI() {
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        const isActive = btn.dataset.filter === activeStatusFilter;
+        if (isActive) {
+          btn.className =
+            'filter-btn inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900 transition';
+        } else {
+          btn.className =
+            'filter-btn inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/70 dark:hover:text-zinc-100 transition';
+        }
+      });
+    }
+
+    // Alerta compacto para seções com produtos que estão há > 24h sem atualizar
+    function renderStaleBar(sectionsHealth) {
+      const container = document.getElementById('stale-banners-container');
+      const staleWithItems = sectionsHealth.filter(s => s.is_stale && s.total_products > 0);
+
+      if (staleWithItems.length === 0) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+
+      container.classList.remove('hidden');
+      container.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
+          <div class="flex items-center gap-2">
+            <span class="h-2 w-2 rounded-full bg-rose-500 animate-ping"></span>
+            <span>
+              <strong>Mais de 24h sem contagem:</strong>
+              ${staleWithItems.map(s => `${escapeHtml(s.name)} (${escapeHtml(s.human_time_since_update)})`).join(', ')}
+            </span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            ${staleWithItems
+              .map(
+                s => `<button onclick="touchSectionTimestamp('${s.id}', '${escapeHtml(s.name)}')" class="rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-rose-700 shadow-sm ring-1 ring-rose-200 hover:bg-rose-100 dark:bg-rose-900/50 dark:text-rose-100 dark:ring-rose-800">Confirmar ${escapeHtml(s.name)}</button>`
+              )
+              .join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Faixa horizontal enxuta de setores para troca rápida em 1 clique
+    function renderSectionsStrip(sectionsHealth) {
+      const strip = document.getElementById('sections-health-strip');
+      // Mostra primeiro setores com produtos cadastrados, depois vazios discretos
+      const activeSecs = sectionsHealth.filter(s => s.total_products > 0);
+      const emptySecs = sectionsHealth.filter(s => s.total_products === 0);
+      const ordered = [...activeSecs, ...emptySecs];
+
+      const allSelected = activeSectionFilter === 'ALL';
+      let html = `
+        <button
+          onclick="setSectionFilter('ALL')"
+          class="shrink-0 rounded-xl border px-3.5 py-2 text-left transition ${
+            allSelected
+              ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+              : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#141922] dark:text-zinc-300 dark:hover:border-zinc-700'
+          }"
+        >
+          <div class="text-xs font-bold">Todos os Setores</div>
+          <div class="text-[11px] ${allSelected ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-400'} tabular">
+            ${dashboardState.stats.total_products} itens
+          </div>
+        </button>
+      `;
+
+      html += ordered
+        .map(sec => {
+          const isSelected = activeSectionFilter === sec.id;
+          const isEmpty = sec.total_products === 0;
+          const hasCrit = sec.critical_count > 0;
+          const hasWarn = sec.warning_count > 0;
+
+          let statusDot = '<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>';
+          if (isEmpty) {
+            statusDot = '<span class="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700"></span>';
+          } else if (sec.is_stale || hasCrit) {
+            statusDot = '<span class="h-2 w-2 rounded-full bg-rose-500"></span>';
+          } else if (hasWarn) {
+            statusDot = '<span class="h-2 w-2 rounded-full bg-amber-500"></span>';
+          }
+
+          return `
+            <button
+              onclick="setSectionFilter('${sec.id}')"
+              class="shrink-0 rounded-xl border px-3.5 py-2 text-left transition ${
+                isSelected
+                  ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                  : isEmpty
+                  ? 'border-zinc-200/60 bg-zinc-100/60 text-zinc-400 hover:bg-white dark:border-zinc-800/50 dark:bg-zinc-900/30 dark:text-zinc-500'
+                  : 'border-zinc-200 bg-white text-zinc-800 hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#141922] dark:text-zinc-200 dark:hover:border-zinc-700'
+              }"
+            >
+              <div class="flex items-center gap-2">
+                ${statusDot}
+                <span class="text-xs font-semibold">${escapeHtml(sec.name)}</span>
+                ${
+                  sec.alert_items_count > 0
+                    ? `<span class="rounded-md px-1.5 py-0.5 text-[10px] leading-none font-bold tabular ${
+                        isSelected
+                          ? 'bg-white/20 text-white dark:bg-zinc-900/15 dark:text-zinc-900'
+                          : hasCrit
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
+                      }">${sec.alert_items_count}</span>`
+                    : ''
+                }
+              </div>
+              <div class="mt-0.5 text-[11px] tabular ${
+                isSelected
+                  ? 'text-zinc-300 dark:text-zinc-600'
+                  : sec.is_stale && !isEmpty
+                  ? 'text-rose-600 dark:text-rose-400 font-medium'
+                  : 'text-zinc-400 dark:text-zinc-500'
+              }">
+                ${isEmpty ? 'Sem itens' : `${sec.total_products} itens • ${escapeHtml(sec.human_time_since_update)}`}
+              </div>
+            </button>
+          `;
+        })
+        .join('');
+
+      strip.innerHTML = html;
+    }
+
+    function populateNewProductCategorySelect(sectionsHealth) {
+      const sel = document.getElementById('new-product-category');
+      sel.innerHTML = sectionsHealth
+        .map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`)
+        .join('');
+    }
+
+    function filterProduct(prod) {
+      if (activeStatusFilter === 'RESTAOCK' && !prod.needs_restock) return false;
+      if (activeStatusFilter === 'CRITICAL' && prod.stock_status !== 'CRITICAL') return false;
+      if (
+        activeStatusFilter === 'WARNING' &&
+        prod.stock_status !== 'WARNING' &&
+        prod.stock_status !== 'NEEDS_ACTION'
+      )
+        return false;
+      if (activeStatusFilter === 'PORTIONED' && prod.stock_status !== 'PORTIONED') return false;
+      if (activeStatusFilter === 'OK' && prod.stock_status !== 'OK') return false;
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const inName = prod.canonical_name.toLowerCase().includes(q);
+        const inVal = (prod.raw_main_value || '').toLowerCase().includes(q);
+        const inSubs = JSON.stringify(prod.sub_attributes || {}).toLowerCase().includes(q);
+        if (!inName && !inVal && !inSubs) return false;
+      }
+      return true;
+    }
+
+    // Formata sub-atributos em uma única linha limpa e rápida de ler (Pizzaria + DiParma)
+    function formatCompactSubDetails(prod) {
+      const subs = prod.sub_attributes || {};
+      const parts = [];
+
+      if (Array.isArray(subs.porcoes) && subs.porcoes.length > 0) {
+        const cleanPorcoes = subs.porcoes.map(p => {
+          const s = String(p).trim();
+          return /por[cç]/i.test(s) ? s : `Porções: ${s}`;
+        });
+        parts.push(cleanPorcoes.join(' • '));
+      } else if (typeof subs.porcoes === 'string' && subs.porcoes) {
+        parts.push(`Porções: ${subs.porcoes}`);
+      }
+
+      if (Array.isArray(subs.porcoes_diparma) && subs.porcoes_diparma.length > 0) {
+        parts.push(subs.porcoes_diparma.map(p => String(p).trim()).join(' • '));
+      }
+
+      const mapLabels = {
+        aberto: 'Aberto',
+        em_uso: 'Em uso',
+        cozido: 'Cozido',
+        congelado: 'Congelado',
+        ralado: 'Ralado',
+        cortado: 'Cortado',
+        panelas: 'Panelas',
+        vasilhas: 'Extra',
+        pencas: 'Pencas'
+      };
+
+      for (const [k, label] of Object.entries(mapLabels)) {
+        if (subs[k] !== undefined && subs[k] !== null && subs[k] !== '') {
+          const valStr = String(subs[k]);
+          if (valStr.toLowerCase().includes(label.toLowerCase())) {
+            parts.push(valStr);
+          } else {
+            parts.push(`${label}: ${valStr}`);
+          }
+        }
+      }
+
+      return parts.join('  ·  ');
+    }
+
+    // Renderiza um card-linha ultra legível para leitura rápida:
+    // - Vermelho: Em Falta (00 sem porção ou Trazer)
+    // - Azul: Só Porção com bastante saldo (00 na unidade fechada, mas bastante porção pronta)
+    // - Amarelo: Pouco (frase com "pouco" ou valor bem pequeno restante)
+    // - Neutro/Verde: Em dia
+    function renderProductItemCard(prod) {
+      const isCrit = prod.stock_status === 'CRITICAL';
+      const isPortioned = prod.stock_status === 'PORTIONED';
+      const isWarn = prod.stock_status === 'WARNING' || prod.stock_status === 'NEEDS_ACTION';
+      const encodedProd = encodeURIComponent(JSON.stringify(prod));
+      const subText = formatCompactSubDetails(prod);
+
+      let cardStyle =
+        'border-zinc-200/80 bg-white hover:border-zinc-300 dark:border-zinc-800/80 dark:bg-[#141922] dark:hover:border-zinc-700';
+      let leftAccent = 'border-l-[3px] border-l-emerald-500/70';
+      let qtyBadgeStyle =
+        'bg-zinc-100 text-zinc-900 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700';
+
+      if (isCrit) {
+        cardStyle =
+          'border-rose-200/90 bg-rose-50/55 hover:border-rose-300 dark:border-rose-900/50 dark:bg-rose-950/20 dark:hover:border-rose-800';
+        leftAccent = 'border-l-[4px] border-l-rose-500';
+        qtyBadgeStyle =
+          'bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-500 dark:text-white';
+      } else if (isPortioned) {
+        cardStyle =
+          'border-sky-200/90 bg-sky-50/60 hover:border-sky-300 dark:border-sky-900/55 dark:bg-sky-950/25 dark:hover:border-sky-800';
+        leftAccent = 'border-l-[4px] border-l-sky-500';
+        qtyBadgeStyle =
+          'bg-sky-100 text-sky-900 ring-1 ring-sky-300/80 hover:bg-sky-200/70 dark:bg-sky-500/20 dark:text-sky-200 dark:ring-sky-500/40';
+      } else if (isWarn) {
+        cardStyle =
+          'border-amber-200/90 bg-amber-50/45 hover:border-amber-300 dark:border-amber-900/40 dark:bg-amber-950/15 dark:hover:border-amber-800';
+        leftAccent = 'border-l-[4px] border-l-amber-500';
+        qtyBadgeStyle =
+          'bg-amber-100 text-amber-950 ring-1 ring-amber-300/70 hover:bg-amber-200/70 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-500/40';
+      }
+
+      const isEditingInline = activeInlineEditId === prod.id;
+
+      return `
+        <div class="group flex items-center justify-between gap-3 rounded-xl border ${cardStyle} ${leftAccent} px-3.5 py-2.5 transition">
+          <!-- Nome + Sub-itens em linha limpa -->
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="truncate text-[13.5px] font-semibold text-zinc-900 dark:text-zinc-100" title="${escapeHtml(prod.canonical_name)}">
+                ${escapeHtml(prod.canonical_name)}
+              </span>
+              ${
+                isCrit
+                  ? `<span class="shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] leading-none font-bold uppercase tracking-wide text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">Falta</span>`
+                  : isPortioned
+                  ? `<span class="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] leading-none font-semibold text-sky-800 dark:bg-sky-500/20 dark:text-sky-300">Só porção</span>`
+                  : isWarn
+                  ? `<span class="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] leading-none font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">Pouco</span>`
+                  : ''
+              }
+            </div>
+            ${
+              subText
+                ? `<p class="mt-0.5 truncate text-xs font-medium text-zinc-600 dark:text-zinc-300 tabular" title="${escapeHtml(subText)}">${escapeHtml(subText)}</p>`
+                : ''
+            }
+          </div>
+
+          <!-- Quantidade Principal Clicável (Edição Direta no Lugar) + Botão Detalhes -->
+          <div class="flex shrink-0 items-center gap-1.5">
+            ${
+              isEditingInline
+                ? `<form onsubmit="saveInlineQuantity(event, '${prod.id}')" class="flex items-center gap-1">
+                    <input
+                      id="inline-input-${prod.id}"
+                      type="text"
+                      value="${escapeHtml(prod.raw_main_value || '')}"
+                      onblur="saveInlineQuantity(event, '${prod.id}')"
+                      class="w-24 rounded-lg border border-zinc-900 bg-white px-2 py-1 text-right font-mono text-xs font-bold text-zinc-900 focus:outline-none dark:border-zinc-200 dark:bg-zinc-900 dark:text-white"
+                    />
+                  </form>`
+                : `<button
+                    type="button"
+                    onclick="startInlineEdit('${prod.id}')"
+                    title="Clique para alterar rapidamente a quantidade"
+                    class="rounded-lg px-2.5 py-1 font-mono text-xs font-bold tabular transition ${qtyBadgeStyle}"
+                  >
+                    ${escapeHtml(prod.raw_main_value || '—')}
+                  </button>`
+            }
+
+            <button
+              type="button"
+              onclick="openEditProductModal('${encodedProd}')"
+              title="Editar porções e detalhes"
+              class="rounded-lg p-1 text-zinc-400 opacity-60 transition hover:bg-zinc-100 hover:text-zinc-700 group-hover:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSectionsAndProducts(sections) {
+      const container = document.getElementById('sections-container');
+
+      const filteredSections = sections.filter(secObj => {
+        if (activeSectionFilter !== 'ALL' && secObj.health.id !== activeSectionFilter) return false;
+        // Se visualizando "Todos os Setores", esconde seções vazias para não poluir a leitura
+        if (activeSectionFilter === 'ALL' && (!secObj.products || secObj.products.length === 0)) {
+          return false;
+        }
+        return true;
+      });
+
+      const blocks = filteredSections
+        .map(secObj => {
+          const health = secObj.health;
+          const visibleProducts = (secObj.products || []).filter(filterProduct);
+
+          if (visibleProducts.length === 0 && (activeStatusFilter !== 'ALL' || searchQuery)) {
+            return '';
+          }
+
+          // Agrupa subcategorias (ex: Geral, Para Suco, Folhas em Hortifrutis) se existirem
+          const groups = new Map();
+          visibleProducts.forEach(p => {
+            const subcat = p.sub_attributes?.subcategoria || '';
+            if (!groups.has(subcat)) groups.set(subcat, []);
+            groups.get(subcat).push(p);
+          });
+
+          let bodyHtml = '';
+          if (visibleProducts.length === 0) {
+            bodyHtml = `<div class="rounded-xl border border-dashed border-zinc-200 py-8 text-center text-xs text-zinc-400 dark:border-zinc-800">Nenhum item neste setor.</div>`;
+          } else if (groups.size <= 1 && groups.has('')) {
+            bodyHtml = `<div class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">${visibleProducts
+              .map(renderProductItemCard)
+              .join('')}</div>`;
+          } else {
+            bodyHtml = Array.from(groups.entries())
+              .map(([subName, prods]) => {
+                return `
+                  <div class="space-y-2">
+                    ${
+                      subName
+                        ? `<div class="pt-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">${escapeHtml(subName)}</div>`
+                        : ''
+                    }
+                    <div class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      ${prods.map(renderProductItemCard).join('')}
+                    </div>
+                  </div>
+                `;
+              })
+              .join('');
+          }
+
+          return `
+            <section class="space-y-2.5">
+              <!-- Cabeçalho Limpo da Seção -->
+              <div class="flex items-center justify-between px-0.5">
+                <div class="flex items-center gap-2.5">
+                  <h2 class="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">
+                    ${escapeHtml(health.name)}
+                  </h2>
+                  <span class="text-xs font-medium text-zinc-400 dark:text-zinc-500 tabular">
+                    ${visibleProducts.length} ${visibleProducts.length === 1 ? 'item' : 'itens'}
+                  </span>
+                  ${
+                    health.last_updated_at
+                      ? `<span class="text-[11px] ${
+                          health.is_stale
+                            ? 'font-semibold text-rose-600 dark:text-rose-400'
+                            : 'text-zinc-400 dark:text-zinc-500'
+                        }">• ${escapeHtml(health.human_time_since_update)}</span>`
+                      : ''
+                  }
+                </div>
+              </div>
+
+              ${bodyHtml}
+            </section>
+          `;
+        })
+        .filter(Boolean);
+
+      container.innerHTML =
+        blocks.length > 0
+          ? blocks.join('')
+          : `<div class="rounded-2xl border border-zinc-200 bg-white py-12 text-center text-xs font-medium text-zinc-400 dark:border-zinc-800 dark:bg-[#141922]">
+               Nenhum item encontrado para este filtro.
+             </div>`;
+    }
+
+    // Edição direta na própria linha (sem abrir popups nativos lentos)
+    function startInlineEdit(productId) {
+      activeInlineEditId = productId;
+      renderDashboard();
+      setTimeout(() => {
+        const inp = document.getElementById(`inline-input-${productId}`);
+        if (inp) {
+          inp.focus();
+          inp.select();
+        }
+      }, 10);
+    }
+
+    let isSavingInline = false;
+    async function saveInlineQuantity(e, productId) {
+      if (e && e.type === 'submit') e.preventDefault();
+      if (isSavingInline) return;
+
+      const inp = document.getElementById(`inline-input-${productId}`);
+      if (!inp) {
+        activeInlineEditId = null;
+        return;
+      }
+
+      const newVal = inp.value.trim();
+      activeInlineEditId = null;
+
+      // Encontra valor anterior para evitar chamada desnecessária
+      let prevVal = null;
+      for (const sec of dashboardState?.sections || []) {
+        const found = (sec.products || []).find(p => p.id === productId);
+        if (found) {
+          prevVal = found.raw_main_value;
+          break;
+        }
+      }
+
+      if (newVal === prevVal) {
+        renderDashboard();
+        return;
+      }
+
+      isSavingInline = true;
+      try {
+        const resp = await fetch(`/api/v1/products/${productId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            raw_main_value: newVal,
+            update_section_timestamp: true
+          })
+        });
+        if (!resp.ok) throw new Error('Erro na atualização');
+        showToast('Quantidade salva');
+        await loadDashboard();
+      } catch (err) {
+        console.error(err);
+        showToast('Erro ao salvar', true);
+        renderDashboard();
+      } finally {
+        isSavingInline = false;
+      }
+    }
+
+    function setStatusFilter(filter) {
+      activeStatusFilter = filter;
+      renderDashboard();
+    }
+
+    function setSectionFilter(secId) {
+      activeSectionFilter = activeSectionFilter === secId && secId !== 'ALL' ? 'ALL' : secId;
+      renderDashboard();
+    }
+
+    function handleSearch(val) {
+      searchQuery = val.trim();
+      document.getElementById('clear-search-btn').classList.toggle('hidden', !searchQuery);
+      renderDashboard();
+    }
+
+    function clearSearch() {
+      const inp = document.getElementById('search-input');
+      inp.value = '';
+      handleSearch('');
+      inp.focus();
+    }
+
+    async function copyShoppingListToClipboard() {
+      if (!dashboardState || !dashboardState.missing_products_summary.length) {
+        showToast('Nenhum item pendente de compra!');
+        return;
+      }
+      const lines = ['*LISTA DE COMPRAS / REPOSIÇÃO - VILLAREJO*'];
+      let currentSec = '';
+      for (const item of dashboardState.missing_products_summary) {
+        if (item.category_name !== currentSec) {
+          currentSec = item.category_name;
+          lines.push(`\n*${currentSec.toUpperCase()}*`);
+        }
+        const tag = item.stock_status === 'CRITICAL' ? '[FALTA]' : '[ATENÇÃO]';
+        const note = item.status_note ? ` (${item.status_note})` : '';
+        lines.push(`• ${item.canonical_name}: ${item.raw_main_value || '00'} ${tag}${note}`);
+      }
+      await navigator.clipboard.writeText(lines.join('\n'));
+      showToast(`${dashboardState.missing_products_summary.length} itens copiados para o WhatsApp!`);
+    }
+
+    let currentEditingSubAttributes = {};
+
+    function openEditProductModal(encodedProd) {
+      const prod = JSON.parse(decodeURIComponent(encodedProd));
+      document.getElementById('edit-product-id').value = prod.id;
+      document.getElementById('edit-modal-title').textContent = prod.canonical_name;
+      document.getElementById('edit-canonical-name').value = prod.canonical_name;
+      document.getElementById('edit-raw-main-value').value = prod.raw_main_value || '';
+
+      const subs = prod.sub_attributes || {};
+      currentEditingSubAttributes = { ...subs };
+      document.getElementById('edit-sub-aberto').value = subs.aberto || '';
+      document.getElementById('edit-sub-cozido').value = subs.cozido || '';
+      document.getElementById('edit-sub-ralado').value = subs.ralado || subs.cortado || subs.congelado || '';
+
+      const porcoes = Array.isArray(subs.porcoes)
+        ? subs.porcoes.join(', ')
+        : subs.porcoes || '';
+      document.getElementById('edit-sub-porcoes').value = porcoes;
+
+      const modal = document.getElementById('edit-product-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeEditProductModal() {
+      const modal = document.getElementById('edit-product-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    async function submitEditProduct(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-product-id').value;
+      const canonicalName = document.getElementById('edit-canonical-name').value.trim();
+      const rawMainValue = document.getElementById('edit-raw-main-value').value.trim();
+      const aberto = document.getElementById('edit-sub-aberto').value.trim();
+      const cozido = document.getElementById('edit-sub-cozido').value.trim();
+      const ralado = document.getElementById('edit-sub-ralado').value.trim();
+      const porcoesRaw = document.getElementById('edit-sub-porcoes').value.trim();
+
+      const porcoesList = porcoesRaw
+        ? porcoesRaw.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const subAttributes = { ...currentEditingSubAttributes };
+      delete subAttributes.aberto;
+      delete subAttributes.cozido;
+      delete subAttributes.ralado;
+      delete subAttributes.cortado;
+      delete subAttributes.congelado;
+      delete subAttributes.porcoes;
+
+      if (aberto) subAttributes.aberto = aberto;
+      if (cozido) subAttributes.cozido = cozido;
+      if (ralado) subAttributes.ralado = ralado;
+      if (porcoesList.length > 0) subAttributes.porcoes = porcoesList;
+
+      try {
+        const resp = await fetch(`/api/v1/products/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            canonical_name: canonicalName,
+            raw_main_value: rawMainValue,
+            sub_attributes: subAttributes,
+            is_incomplete_data: false,
+            update_section_timestamp: true
+          })
+        });
+        if (!resp.ok) throw new Error('Falha ao salvar');
+        closeEditProductModal();
+        showToast('Item atualizado');
+        await loadDashboard();
+      } catch (err) {
+        console.error(err);
+        showToast('Erro ao atualizar item', true);
+      }
+    }
+
+    async function deleteCurrentProduct() {
+      const id = document.getElementById('edit-product-id').value;
+      if (!id || !confirm('Remover este item do estoque?')) return;
+      try {
+        const resp = await fetch(`/api/v1/products/${id}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('Erro ao remover');
+        closeEditProductModal();
+        showToast('Item removido');
+        await loadDashboard();
+      } catch (err) {
+        showToast('Erro ao remover item', true);
+      }
+    }
+
+    async function touchSectionTimestamp(sectionId, sectionName) {
+      try {
+        const resp = await fetch(`/api/v1/sections/${sectionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ touch_updated_at: true })
+        });
+        if (!resp.ok) throw new Error('Erro');
+        showToast(`${sectionName} confirmado`);
+        await loadDashboard();
+      } catch (err) {
+        showToast('Erro ao atualizar setor', true);
+      }
+    }
+
+    function openNewProductModal() {
+      const modal = document.getElementById('new-product-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeNewProductModal() {
+      const modal = document.getElementById('new-product-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    async function submitNewProduct(e) {
+      e.preventDefault();
+      const categoryId = document.getElementById('new-product-category').value;
+      const canonicalName = document.getElementById('new-product-name').value.trim();
+      const rawMainValue = document.getElementById('new-product-value').value.trim();
+
+      try {
+        const resp = await fetch('/api/v1/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            category_id: categoryId,
+            canonical_name: canonicalName,
+            raw_main_value: rawMainValue
+          })
+        });
+        if (!resp.ok) throw new Error('Erro');
+        document.getElementById('new-product-name').value = '';
+        document.getElementById('new-product-value').value = '';
+        closeNewProductModal();
+        showToast('Item adicionado');
+        await loadDashboard();
+      } catch (err) {
+        showToast('Erro ao criar item', true);
+      }
+    }
+
+    function openWebhookConfigModal() {
+      document.getElementById('sync-group-feedback').classList.add('hidden');
+      const modal = document.getElementById('webhook-config-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeWebhookConfigModal() {
+      const modal = document.getElementById('webhook-config-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    async function triggerGroupSyncNow() {
+      const btn = document.getElementById('sync-group-btn');
+      const fb = document.getElementById('sync-group-feedback');
+      btn.disabled = true;
+      btn.textContent = 'Sincronizando...';
+      try {
+        const resp = await fetch('/api/v1/webhook/sync-group', { method: 'POST' });
+        const data = await resp.json();
+        fb.classList.remove('hidden');
+        if (data.synced) {
+          fb.innerHTML = `<span class="font-semibold text-emerald-600 dark:text-emerald-400">Sincronizado:</span> ${data.total_items_updated} itens atualizados.`;
+          await loadDashboard();
+        } else {
+          fb.innerHTML = `<span class="font-medium text-amber-700 dark:text-amber-400">${escapeHtml(data.reason || 'Instância não conectada')}</span> — preencha o token da instância no <code>.env</code>.`;
+        }
+      } catch (err) {
+        fb.classList.remove('hidden');
+        fb.textContent = 'Falha ao conectar à Evolution API.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sincronizar Mensagens do Grupo';
+      }
+    }
+
+    function openManualParserModal() {
+      document.getElementById('parse-result-feedback').classList.add('hidden');
+      const modal = document.getElementById('manual-parser-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeManualParserModal() {
+      const modal = document.getElementById('manual-parser-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function fillSampleMessage(key) {
+      document.getElementById('manual-raw-message').value = SAMPLE_MESSAGES[key] || '';
+    }
+
+    async function submitManualParse(e) {
+      e.preventDefault();
+      const rawMessage = document.getElementById('manual-raw-message').value;
+      const btn = document.getElementById('manual-parse-submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Processando...';
+
+      try {
+        const resp = await fetch('/api/v1/stock/parse-manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_message: rawMessage, replace_section_snapshot: true })
+        });
+        if (!resp.ok) throw new Error('Erro');
+        const result = await resp.json();
+
+        const fb = document.getElementById('parse-result-feedback');
+        fb.classList.remove('hidden');
+        fb.innerHTML = `<strong>${result.affected_sections.join(', ')}</strong> atualizado (${result.parsed_items_count} itens).`;
+        showToast('Relatório aplicado');
+        await loadDashboard();
+      } catch (err) {
+        showToast('Falha ao processar relatório', true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Atualizar Setor';
+      }
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDashboard(true);
+      // Varredura automática a cada 10 minutos enquanto a página estiver aberta
+      setInterval(() => loadDashboard(true), 10 * 60 * 1000);
+    });
+  </script>
+</body>
+</html>

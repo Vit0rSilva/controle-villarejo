@@ -1,0 +1,78 @@
+services:
+  villarejo-postgres:
+    image: postgres:16-alpine
+    container_name: villarejo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-estoque_db}
+    ports:
+      - "5433:5432"
+    volumes:
+      - villarejo_pgdata:/var/lib/postgresql/data
+    networks:
+      - villarejo_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  villarejo-api:
+    image: controle-villarejo-villarejo-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: villarejo-api
+    restart: unless-stopped
+    depends_on:
+      villarejo-postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@villarejo-postgres:5432/${POSTGRES_DB:-estoque_db}
+      EVOLUTION_API_URL: ${DOCKER_EVOLUTION_API_URL:-http://evolution-api:8080}
+      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-villarejo_estoque}
+      EVOLUTION_INSTANCE_TOKEN: ${EVOLUTION_INSTANCE_TOKEN:-token_da_instancia_aqui}
+      EVOLUTION_WEBHOOK_TOKEN: ${EVOLUTION_WEBHOOK_TOKEN:-token_secreto_do_webhook_aqui}
+      REQUIRE_WEBHOOK_TOKEN: ${REQUIRE_WEBHOOK_TOKEN:-false}
+      TARGET_GROUP_JID: ${TARGET_GROUP_JID:-557188908550-1544726594@g.us}
+      WEBHOOK_PUBLIC_URL: ${WEBHOOK_PUBLIC_URL:-http://villarejo-api:8000/api/v1/webhook/evolution}
+      APP_ENV: ${APP_ENV:-development}
+      STALE_SECTION_HOURS: ${STALE_SECTION_HOURS:-24}
+      FUZZY_MATCH_THRESHOLD: ${FUZZY_MATCH_THRESHOLD:-82}
+      AUTO_SEED_ON_STARTUP: ${AUTO_SEED_ON_STARTUP:-true}
+    ports:
+      - "8001:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - villarejo_network
+      - evolution_external_net
+
+  villarejo-frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: villarejo-frontend
+    restart: unless-stopped
+    depends_on:
+      - villarejo-api
+    environment:
+      API_BACKEND_URL: http://villarejo-api:8000
+    ports:
+      - "3000:3000"
+    networks:
+      - villarejo_network
+
+volumes:
+  villarejo_pgdata:
+    name: villarejo_pgdata
+
+networks:
+  villarejo_network:
+    name: villarejo_network
+    driver: bridge
+  evolution_external_net:
+    name: ao-mossar_backend
+    external: true
