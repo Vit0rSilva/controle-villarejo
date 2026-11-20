@@ -61,6 +61,10 @@ services:
       - villarejo-api
     environment:
       API_BACKEND_URL: http://villarejo-api:8000
+      VILLAREJO_ADMIN_USERNAME: ${VILLAREJO_ADMIN_USERNAME:?VILLAREJO_ADMIN_USERNAME is required}
+      VILLAREJO_ADMIN_PASSWORD_HASH: ${VILLAREJO_ADMIN_PASSWORD_HASH:?VILLAREJO_ADMIN_PASSWORD_HASH is required}
+      VILLAREJO_AUTH_SECRET: ${VILLAREJO_AUTH_SECRET:?VILLAREJO_AUTH_SECRET is required}
+      VILLAREJO_SESSION_TTL_SECONDS: ${VILLAREJO_SESSION_TTL_SECONDS:-28800}
     networks:
       - villarejo_network
       - evolution_external_net
