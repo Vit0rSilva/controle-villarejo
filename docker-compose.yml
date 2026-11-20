@@ -1,6 +1,6 @@
 services:
   villarejo-postgres:
-    image: postgres:16-alpine
+    image: postgres@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
     container_name: villarejo-postgres
     restart: unless-stopped
     environment:
@@ -16,6 +16,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   villarejo-api:
     image: controle-villarejo-villarejo-api:latest
@@ -50,6 +51,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 384m
 
   villarejo-frontend:
     build:
@@ -72,6 +77,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 192m
 
 volumes:
   villarejo_pgdata:
