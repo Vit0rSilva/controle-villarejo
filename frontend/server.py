@@ -4,10 +4,12 @@ import hmac
 import os
 import secrets
 import time
+import ipaddress
 from urllib.parse import parse_qs
 from pathlib import Path
 
 import httpx
+import redis.asyncio as redis
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
@@ -19,9 +21,11 @@ ADMIN_USERNAME = os.getenv("VILLAREJO_ADMIN_USERNAME", "").strip()
 ADMIN_PASSWORD_HASH = os.getenv("VILLAREJO_ADMIN_PASSWORD_HASH", "").strip()
 AUTH_SECRET = os.getenv("VILLAREJO_AUTH_SECRET", "").strip()
 
-_failed_logins: dict[str, list[float]] = {}
-_MAX_LOGIN_FAILURES = 5
-_LOGIN_WINDOW_SECONDS = 900
+_MAX_LOGIN_FAILURES = int(os.getenv("VILLAREJO_LOGIN_FAILURE_LIMIT", "5"))
+_PERMANENT_LOGIN_FAILURES = int(os.getenv("VILLAREJO_LOGIN_PERMANENT_FAILURE_LIMIT", "20"))
+_LOGIN_WINDOW_SECONDS = int(os.getenv("VILLAREJO_LOGIN_WINDOW_SECONDS", "900"))
+REDIS_URL = os.getenv("VILLAREJO_SECURITY_REDIS_URL", "redis://backend-redis:6379/3")
+_redis_client: redis.Redis | None = None
 
 LOGIN_HTML = """<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -85,15 +89,58 @@ def _valid_session(value: str | None) -> bool:
         return False
 
 
-def _login_is_rate_limited(client_ip: str) -> bool:
-    now = time.time()
-    attempts = [timestamp for timestamp in _failed_logins.get(client_ip, []) if now - timestamp < _LOGIN_WINDOW_SECONDS]
-    _failed_logins[client_ip] = attempts
-    return len(attempts) >= _MAX_LOGIN_FAILURES
+def _client_ip(request: Request) -> str:
+    for value in (request.headers.get("cf-connecting-ip"), request.headers.get("x-real-ip"), request.client.host if request.client else None):
+        try:
+            if value:
+                return str(ipaddress.ip_address(value.strip()))
+        except ValueError:
+            continue
+    return "unknown"
 
 
-def _record_login_failure(client_ip: str) -> None:
-    _failed_logins.setdefault(client_ip, []).append(time.time())
+async def _redis() -> redis.Redis | None:
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    try:
+        _redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+        await _redis_client.ping()
+        return _redis_client
+    except Exception:
+        _redis_client = None
+        return None
+
+
+async def _login_is_blocked(client_ip: str) -> tuple[bool, int]:
+    client = await _redis()
+    if client is None or client_ip == "unknown":
+        return False, 0
+    if await client.exists(f"villarejo:login:blocked:{client_ip}"):
+        return True, 0
+    ttl = await client.ttl(f"villarejo:login:failures:{client_ip}")
+    count = int(await client.get(f"villarejo:login:failures:{client_ip}") or 0)
+    return count >= _MAX_LOGIN_FAILURES, max(1, ttl)
+
+
+async def _record_login_failure(client_ip: str) -> bool:
+    client = await _redis()
+    if client is None or client_ip == "unknown":
+        return False
+    key = f"villarejo:login:failures:{client_ip}"
+    count = await client.incr(key)
+    if count == 1:
+        await client.expire(key, _LOGIN_WINDOW_SECONDS)
+    if count >= _PERMANENT_LOGIN_FAILURES:
+        await client.set(f"villarejo:login:blocked:{client_ip}", "1")
+        return True
+    return False
+
+
+async def _record_login_success(client_ip: str) -> None:
+    client = await _redis()
+    if client is not None and client_ip != "unknown":
+        await client.delete(f"villarejo:login:failures:{client_ip}")
 
 
 def _login_page(error: str = "") -> HTMLResponse:
@@ -110,16 +157,19 @@ async def login_page() -> HTMLResponse:
 async def login(request: Request) -> Response:
     if not ADMIN_USERNAME or not ADMIN_PASSWORD_HASH or not AUTH_SECRET:
         return _login_page("O acesso administrativo não está configurado no servidor.")
-    client_ip = request.client.host if request.client else "unknown"
-    if _login_is_rate_limited(client_ip):
-        return _login_page("Muitas tentativas. Aguarde alguns minutos e tente novamente.")
+    remote_ip = _client_ip(request)
+    blocked, ttl = await _login_is_blocked(remote_ip)
+    if blocked:
+        return _login_page("Este acesso foi temporariamente bloqueado por excesso de tentativas.")
     body = parse_qs((await request.body()).decode("utf-8", errors="replace"))
     username = body.get("username", [""])[0].strip()
     password = body.get("password", [""])[0]
     if not hmac.compare_digest(username, ADMIN_USERNAME) or not _password_matches(password):
-        _record_login_failure(client_ip)
+        permanent = await _record_login_failure(remote_ip)
+        if permanent:
+            return _login_page("Este IP foi bloqueado permanentemente por tentativas repetidas.")
         return _login_page("Usuário ou senha inválidos.")
-    _failed_logins.pop(client_ip, None)
+    await _record_login_success(remote_ip)
     response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         SESSION_COOKIE,
