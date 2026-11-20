@@ -6,12 +6,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN addgroup --system app && adduser --system --ingroup app app
+
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir "sqlalchemy>=2.1.0"
 
 COPY . .
+
+RUN chown -R app:app /app
+USER app
 
 EXPOSE 8000
 
