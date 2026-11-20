@@ -74,7 +74,8 @@ async def lifespan(app: FastAPI):
     4. Inicia loop de varredura automática de 10 em 10 minutos.
     """
     active_db_url = await database.ensure_database_ready()
-    logger.info("Banco de dados e tabelas prontos em: %s", active_db_url)
+    # Nunca registrar a URL: ela pode conter usuário e senha do banco.
+    logger.info("Banco de dados e tabelas prontos")
     logger.info(
         "Modo Observador ativo para o grupo '%s' | Webhook URL: %s",
         settings.TARGET_GROUP_JID,
@@ -137,15 +138,38 @@ app = FastAPI(
     ),
     version="1.1.0",
     lifespan=lifespan,
+    docs_url=None if settings.APP_ENV == "production" else "/docs",
+    redoc_url=None if settings.APP_ENV == "production" else "/redoc",
+    openapi_url=None if settings.APP_ENV == "production" else "/openapi.json",
 )
+
+allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in (settings.ALLOWED_ORIGINS if hasattr(settings, "ALLOWED_ORIGINS") else "").split(",")
+    if origin.strip()
+]
+if settings.APP_ENV == "production" and not allowed_origins:
+    raise RuntimeError("ALLOWED_ORIGINS precisa ser configurado em produção")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins or ["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Webhook-Token", "apikey"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if settings.APP_ENV == "production":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 register_exception_handlers(app)
 app.include_router(api_router, prefix="/api/v1")

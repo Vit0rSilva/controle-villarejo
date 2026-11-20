@@ -4,17 +4,15 @@ services:
     container_name: villarejo-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-estoque_db}
-    ports:
-      - "5433:5432"
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
     volumes:
       - villarejo_pgdata:/var/lib/postgresql/data
     networks:
       - villarejo_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required} -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -30,25 +28,28 @@ services:
       villarejo-postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@villarejo-postgres:5432/${POSTGRES_DB:-estoque_db}
-      EVOLUTION_API_URL: ${DOCKER_EVOLUTION_API_URL:-http://evolution-api:8080}
-      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-villarejo_estoque}
-      EVOLUTION_INSTANCE_TOKEN: ${EVOLUTION_INSTANCE_TOKEN:-token_da_instancia_aqui}
-      EVOLUTION_WEBHOOK_TOKEN: ${EVOLUTION_WEBHOOK_TOKEN:-token_secreto_do_webhook_aqui}
-      REQUIRE_WEBHOOK_TOKEN: ${REQUIRE_WEBHOOK_TOKEN:-false}
-      TARGET_GROUP_JID: ${TARGET_GROUP_JID:-557188908550-1544726594@g.us}
-      WEBHOOK_PUBLIC_URL: ${WEBHOOK_PUBLIC_URL:-http://villarejo-api:8000/api/v1/webhook/evolution}
-      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@villarejo-postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      EVOLUTION_API_URL: ${DOCKER_EVOLUTION_API_URL:?DOCKER_EVOLUTION_API_URL is required}
+      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:?EVOLUTION_INSTANCE_NAME is required}
+      EVOLUTION_INSTANCE_TOKEN: ${EVOLUTION_INSTANCE_TOKEN:?EVOLUTION_INSTANCE_TOKEN is required}
+      EVOLUTION_WEBHOOK_TOKEN: ${EVOLUTION_WEBHOOK_TOKEN:?EVOLUTION_WEBHOOK_TOKEN is required}
+      REQUIRE_WEBHOOK_TOKEN: ${REQUIRE_WEBHOOK_TOKEN:-true}
+      TARGET_GROUP_JID: ${TARGET_GROUP_JID:?TARGET_GROUP_JID is required}
+      WEBHOOK_PUBLIC_URL: ${WEBHOOK_PUBLIC_URL:?WEBHOOK_PUBLIC_URL is required}
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
       STALE_SECTION_HOURS: ${STALE_SECTION_HOURS:-24}
       FUZZY_MATCH_THRESHOLD: ${FUZZY_MATCH_THRESHOLD:-82}
       AUTO_SEED_ON_STARTUP: ${AUTO_SEED_ON_STARTUP:-true}
-    ports:
-      - "8001:8000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - villarejo_network
       - evolution_external_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   villarejo-frontend:
     build:
@@ -60,10 +61,13 @@ services:
       - villarejo-api
     environment:
       API_BACKEND_URL: http://villarejo-api:8000
-    ports:
-      - "3000:3000"
     networks:
       - villarejo_network
+      - evolution_external_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 volumes:
   villarejo_pgdata:
@@ -74,5 +78,5 @@ networks:
     name: villarejo_network
     driver: bridge
   evolution_external_net:
-    name: ao-mossar_backend
+    name: meu-servidor_backend
     external: true

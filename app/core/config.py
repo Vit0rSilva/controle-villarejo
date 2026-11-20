@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,13 +17,13 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/estoque_db",
+        default="",
         description="URL de conexão assíncrona do banco de dados PostgreSQL 16+",
     )
 
     # Evolution API Configuration
     EVOLUTION_API_URL: str = Field(
-        default="http://localhost:8080",
+        default="",
         description="URL base da Evolution API",
     )
     EVOLUTION_INSTANCE_NAME: str = Field(
@@ -31,16 +31,16 @@ class Settings(BaseSettings):
         description="Nome da instância configurada na Evolution API",
     )
     EVOLUTION_INSTANCE_TOKEN: str = Field(
-        default="token_da_instancia_aqui",
+        default="",
         description="Token/apikey da instância na Evolution API",
     )
     EVOLUTION_WEBHOOK_TOKEN: str = Field(
-        default="token_secreto_do_webhook_aqui",
+        default="",
         description="Token secreto para autenticação das requisições de Webhook",
     )
     REQUIRE_WEBHOOK_TOKEN: bool = Field(
-        default=False,
-        description="Se False, aceita chamadas do Webhook da Evolution API mesmo sem header de token customizado",
+        default=True,
+        description="Exige token secreto nas chamadas do Webhook da Evolution API",
     )
     TARGET_GROUP_JID: str = Field(
         default="557188908550-1544726594@g.us",
@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "staging", "production", "testing"] = Field(
         default="development",
         description="Ambiente de execução",
+    )
+    ALLOWED_ORIGINS: str = Field(
+        default="",
+        description="Origens CORS separadas por vírgula; obrigatório em produção",
     )
     STALE_SECTION_HOURS: int = Field(
         default=24,
@@ -86,6 +90,22 @@ class Settings(BaseSettings):
     @classmethod
     def strip_trailing_slash(cls, v: str) -> str:
         return v.rstrip("/")
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.APP_ENV == "production":
+            required = {
+                "DATABASE_URL": self.DATABASE_URL,
+                "EVOLUTION_API_URL": self.EVOLUTION_API_URL,
+                "EVOLUTION_INSTANCE_TOKEN": self.EVOLUTION_INSTANCE_TOKEN,
+                "EVOLUTION_WEBHOOK_TOKEN": self.EVOLUTION_WEBHOOK_TOKEN,
+            }
+            missing = [name for name, value in required.items() if not value.strip()]
+            if missing:
+                raise ValueError(
+                    "Configuração obrigatória ausente em produção: " + ", ".join(missing)
+                )
+        return self
 
 
 @lru_cache
