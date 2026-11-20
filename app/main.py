@@ -190,9 +190,4 @@ async def serve_dashboard_ui(request: Request) -> HTMLResponse:
 
 @app.get("/health", tags=["Health"])
 async def healthcheck() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "environment": settings.APP_ENV,
-        "target_group_jid": settings.TARGET_GROUP_JID,
-        "webhook_url": settings.WEBHOOK_PUBLIC_URL,
-    }
+    return {"status": "ok"}

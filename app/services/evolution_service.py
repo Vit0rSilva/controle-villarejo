@@ -67,16 +67,16 @@ class EvolutionService:
         return False
 
     def get_webhook_configuration_info(self) -> dict[str, Any]:
-        """Retorna os dados exatos do Webhook para o usuário colar na Evolution API."""
+        """Retorna configuração sem expor o segredo do Webhook na API pública."""
         return {
             "mode": "READ_ONLY_OBSERVER",
             "target_group_jid": self.target_group_jid,
-            "webhook_url_docker_internal": settings.WEBHOOK_PUBLIC_URL,
-            "webhook_url_with_token": f"{settings.WEBHOOK_PUBLIC_URL}?token={self.webhook_token}",
-            "webhook_url_host": f"http://localhost:8001/api/v1/webhook/evolution?token={self.webhook_token}",
+            "webhook_url": settings.WEBHOOK_PUBLIC_URL,
+            "token_required": bool(self.webhook_token and settings.REQUIRE_WEBHOOK_TOKEN),
+            "token_query_parameter": "token",
             "required_events": ["MESSAGES_UPSERT"],
             "instructions": (
-                "Adicione a URL 'http://villarejo-api:8000/api/v1/webhook/evolution' na aba Webhooks da sua instância "
+                "Adicione a URL configurada na aba Webhooks da sua instância "
                 "no Evolution API (marcando o evento MESSAGES_UPSERT). O sistema observará exclusivamente o grupo "
                 f"'{self.target_group_jid}' e processará apenas mensagens no formato de relatório de estoque."
             ),
